@@ -1,0 +1,165 @@
+# Optimization: publish to executables repo in a single job after both builds
+# to avoid duplicated checkout/commit/push operations.
+name: Test Build on Windows and Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry and dependencies
+        run: pip install poetry; poetry lock; poetry install
+
+      - name: Run tests
+        run: poetry run pytest
+
+      - name: Build executable
+        run: poetry run python scripts/build_exe.py
+
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-temp
+          path: TEMP/
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry and dependencies
+        run: |
+          pip install poetry
+          poetry lock
+          poetry install
+
+      - name: Run tests
+        run: poetry run pytest
+
+      - name: Build executable
+        run: poetry run python scripts/build_exe.py
+
+      - name: Upload Linux build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-temp
+          path: TEMP/
+          if-no-files-found: error
+
+  publish-executables:
+    if: github.event_name != 'pull_request'
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-22.04
+    env:
+      PROJECT_NAME: ${{ github.event.repository.name }}
+    steps:
+      - name: Checkout executables repo
+        uses: actions/checkout@v4
+        with:
+          repository: ghpascon/executables
+          token: ${{ secrets.EXECUTABLES_TOKEN }}
+          path: executables-repo
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            linux
+            windows
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-temp
+          path: artifacts/windows
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-temp
+          path: artifacts/linux
+
+      - name: Determine tag to use
+        run: |
+          project_name="$PROJECT_NAME"
+          cd executables-repo
+
+          origin_tag=$(git ls-remote --refs --tags "https://github.com/$GITHUB_REPOSITORY.git" | awk -F/ '{print $3}' | sort -V | tail -n1)
+
+          if [ -n "$origin_tag" ]; then
+            NEW_TAG="${project_name}-${origin_tag}"
+            echo "Using tag from origin repo: $NEW_TAG"
+          else
+            last_tag=$(git ls-remote --refs --tags origin "${project_name}-v*" | awk -F/ '{print $3}' | sort -V | tail -n1)
+            if [ -z "$last_tag" ]; then
+              NEW_TAG="${project_name}-v1.0.0"
+            else
+              version="${last_tag##*-v}"
+              major=$(echo "$version" | cut -d. -f1)
+              minor=$(echo "$version" | cut -d. -f2)
+              patch=$(echo "$version" | cut -d. -f3)
+              patch=$((patch + 1))
+              NEW_TAG="${project_name}-v${major}.${minor}.${patch}"
+            fi
+            echo "Generated incremental tag: $NEW_TAG"
+          fi
+
+          echo "NEW_TAG=$NEW_TAG" >> "$GITHUB_ENV"
+
+      - name: Copy executables into target folders
+        run: |
+          windows_build_dir="artifacts/windows"
+          linux_build_dir="artifacts/linux"
+          windows_dest_dir="executables-repo/windows/$PROJECT_NAME"
+          linux_dest_dir="executables-repo/linux/$PROJECT_NAME"
+
+          rm -rf "$windows_dest_dir" "$linux_dest_dir"
+          mkdir -p "$windows_dest_dir" "$linux_dest_dir"
+
+          rsync -a --exclude=build/ "$windows_build_dir/" "$windows_dest_dir/"
+          rsync -a --exclude=build/ "$linux_build_dir/" "$linux_dest_dir/"
+
+      - name: Commit and push executables
+        run: |
+          cd executables-repo
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add "windows/$PROJECT_NAME" "linux/$PROJECT_NAME"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Windows/Linux executables for $PROJECT_NAME"
+            git push
+          fi
+
+      - name: Create and push tag
+        run: |
+          cd executables-repo
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
+            echo "Tag $NEW_TAG already exists locally"
+          else
+            git tag "$NEW_TAG"
+          fi
+          git push origin "$NEW_TAG"
