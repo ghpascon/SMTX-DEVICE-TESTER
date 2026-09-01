@@ -5,6 +5,7 @@
     {% include 'includes/_events.html' %} {% include 'includes/_devices.html' %}
   </div>
   <div class="lg:col-span-9">
+    {% include 'pages/index/_tests_info.html' %}
     {% if table == "complete" or only_complete_table %} 
     {% include 'includes/_tags_all.html' %} 
     {% elif table == "gtin" %} 

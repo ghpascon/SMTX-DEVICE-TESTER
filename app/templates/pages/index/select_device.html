@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto p-6">
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-2xl font-semibold text-center mb-6">Selecionar dispositivo para testes</h2>
+
+    <div x-data="selectDevice()" x-init="init()" x-cloak>
+      <div class="grid grid-cols-3 gap-4">
+        <template x-for="(device, idx) in devices" :key="device.name">
+          <button type="button" @click="choose(device.name)" :class="device.colorClass + ' text-white'"
+            class="w-full flex items-center justify-center font-semibold rounded-lg transition transform hover:-translate-y-0.5 focus:outline-none"
+            style="aspect-ratio: 1 / 1;">
+            <span x-text="device.name"></span>
+          </button>
+        </template>
+      </div>
+
+      <div x-show="devices.length === 0" class="text-center text-gray-500 mt-6">Nenhum dispositivo disponível</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function selectDevice() {
+    return {
+      devices: [],
+      lastPayload: '',
+      colors: ['bg-rose-600', 'bg-amber-500', 'bg-sky-600', 'bg-lime-600', 'bg-indigo-600', 'bg-fuchsia-600', 'bg-emerald-600', 'bg-yellow-500', 'bg-pink-600'],
+
+      async init() {
+        await this.loadDevices();
+        TemplateUtils.bindVisibilityPolling(this, this.loadDevices, 3000);
+      },
+
+      destroy() {
+        TemplateUtils.unbindVisibilityPolling(this);
+      },
+
+      async loadDevices() {
+        try {
+          const result = await TemplateUtils.fetchJsonIfChanged('{{ url_for("get_available_devices") }}', this.lastPayload);
+          if (result.changed) {
+            this.lastPayload = result.payload;
+            const raw = Array.isArray(result.data) ? result.data : (result.data || []);
+            this.devices = raw.map((name, i) => ({ name, colorClass: this.colors[i % this.colors.length] }));
+          }
+        } catch (e) {
+          console.error('Erro ao carregar dispositivos', e);
+        }
+      },
+
+      async choose(deviceName) {
+        if (!deviceName) return;
+        const endpoint = '{{ url_for("set_test_device", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(deviceName));
+        try {
+          const res = await fetch(endpoint, { method: 'POST' });
+          if (res.ok) {
+            window.location.href = '{{ url_for("index") }}';
+          } else {
+            let data = {};
+            try { data = await res.json(); } catch { }
+            window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: data.message || 'Falha ao selecionar dispositivo', type: 'error' } }));
+          }
+        } catch (err) {
+          console.error('Erro ao definir dispositivo de teste', err);
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Erro ao definir dispositivo', type: 'error' } }));
+        }
+      }
+    };
+  }
+</script>
+
+{% endblock %}

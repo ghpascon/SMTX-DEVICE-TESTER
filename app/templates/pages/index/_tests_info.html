@@ -1,0 +1,128 @@
+<div class="bg-white rounded-lg shadow p-4 mb-4" x-data="testsInfo()">
+    <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Status dos Testes</h3>
+        <div class="flex items-center gap-3">
+            <div class="text-sm text-gray-500" x-text="lastUpdatedText()"></div>
+            <button @click="reloadDevice()" :disabled="!current_device || reloading"
+                class="text-sm px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                type="button">
+                Recarregar
+            </button>
+            <button @click="resetTests()" :disabled="resetting"
+                class="text-sm px-3 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                type="button">
+                Resetar
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <div class="text-sm text-gray-600">Dispositivo atual</div>
+        <div class="flex items-center gap-3 mt-2">
+            <div class="w-3 h-3 rounded-full" :class="current_device ? 'bg-green-500' : 'bg-gray-300'"></div>
+            <div class="font-medium" x-text="current_device || 'Nenhum'"></div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <div class="text-sm text-gray-600 mb-2">Testes</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <template x-for="(pair, idx) in Object.entries(tests)" :key="idx">
+                <div class="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                    <div class="w-6 h-6 flex items-center justify-center rounded-full"
+                        :class="pair[1] ? 'bg-green-600 text-white' : 'bg-gray-600 text-dark'">
+                        <span x-text="pair[1] ? '✓' : '–'"></span>
+                    </div>
+                    <div class="text-sm truncate" x-text="pair[0]"></div>
+                </div>
+            </template>
+        </div>
+        <div x-show="Object.keys(tests).length === 0" class="text-sm text-gray-400 mt-2">Nenhum teste carregado</div>
+    </div>
+</div>
+
+<script>
+    function testsInfo() {
+        return {
+            current_device: null,
+            tests: {},
+            resetting: false,
+            reloading: false,
+            lastPayload: '',
+            lastUpdated: null,
+
+            init() {
+                this.load();
+                TemplateUtils.bindVisibilityPolling(this, this.load, 1000);
+            },
+
+            destroy() {
+                TemplateUtils.unbindVisibilityPolling(this);
+            },
+
+            lastUpdatedText() {
+                return this.lastUpdated ? new Date(this.lastUpdated).toLocaleTimeString() : '';
+            },
+
+            async load() {
+                try {
+                    const result = await TemplateUtils.fetchJsonIfChanged('{{ url_for("get_current_tests") }}', this.lastPayload);
+                    if (result.changed) {
+                        this.lastPayload = result.payload;
+                        const data = result.data || {};
+                        this.current_device = data.current_device || null;
+                        this.tests = data.tests || {};
+                        this.lastUpdated = Date.now();
+                    }
+                } catch (err) {
+                    console.error('Erro ao carregar status dos testes', err);
+                }
+            },
+
+            async reloadDevice() {
+                if (!this.current_device) return;
+                if (this.reloading) return;
+                this.reloading = true;
+                try {
+                    const endpoint = '{{ url_for("set_test_device", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(this.current_device));
+                    const res = await fetch(endpoint, { method: 'POST' });
+                    if (res.ok) {
+                        // refresh current tests info
+                        await this.load();
+                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Dispositivo recarregado', type: 'success' } }));
+                    } else {
+                        let data = {};
+                        try { data = await res.json(); } catch (e) { }
+                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: data.message || 'Falha ao recarregar dispositivo', type: 'error' } }));
+                    }
+                } catch (err) {
+                    console.error('Erro ao recarregar device', err);
+                    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Erro ao recarregar dispositivo', type: 'error' } }));
+                } finally {
+                    this.reloading = false;
+                }
+            },
+
+            async resetTests() {
+                if (!confirm('Tem certeza que deseja resetar os testes?')) return;
+                if (this.resetting) return;
+                this.resetting = true;
+                try {
+                    const res = await fetch('{{ url_for("reset_tests") }}', { method: 'DELETE' });
+                    if (res.ok) {
+                        window.location.href = '{{ url_for("index") }}';
+                    } else {
+                        let data = {};
+                        try { data = await res.json(); } catch (e) { }
+                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: data.message || 'Falha ao resetar testes', type: 'error' } }));
+                    }
+                } catch (err) {
+                    console.error('Erro ao resetar testes', err);
+                    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Erro ao resetar testes', type: 'error' } }));
+                } finally {
+                    this.resetting = false;
+                }
+            },
+        };
+    }
+</script>

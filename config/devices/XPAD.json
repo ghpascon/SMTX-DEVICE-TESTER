@@ -1,0 +1,7 @@
+{
+  "reader": "X714",
+  "buzzer": true,
+  "session": 0,
+  "start_reading": true,
+  "read_power": 25
+}

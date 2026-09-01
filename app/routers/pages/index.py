@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
-
+from fastapi.responses import HTMLResponse, RedirectResponse
+from app.services import rfid_manager
 from app.core import settings, templates
 from app import __version__
 
@@ -10,6 +10,8 @@ router = APIRouter(prefix='', tags=['Pages'])
 
 @router.get('/', response_class=HTMLResponse)
 async def index(request: Request):
+	if not rfid_manager.controller.current_device:
+		return RedirectResponse(url='/select_device')
 	alerts = []
 	if settings.TAG_PREFIX:
 		alerts.append(
@@ -33,6 +35,15 @@ async def index(request: Request):
 			'alerts': alerts,
 			'only_complete_table': settings.ONLY_COMPLETE_TABLE,
 		},
+		media_type='text/html; charset=utf-8',
+	)
+
+
+@router.get('/select_device', response_class=HTMLResponse)
+async def select_device(request: Request):
+	return templates.TemplateResponse(
+		'pages/index/select_device.html',
+		{'request': request, 'title': 'Selecionar Dispositivo', 'alerts': []},
 		media_type='text/html; charset=utf-8',
 	)
 

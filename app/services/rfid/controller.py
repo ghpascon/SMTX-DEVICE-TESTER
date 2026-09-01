@@ -13,6 +13,7 @@ from app.core import settings
 import logging
 from app.services.license import license_manager
 from smartx_rfid.schemas.tag import WriteTagValidator
+from .default_configs import AVAILABLE_DEVICES, get_default_config
 
 
 class Controller:
@@ -25,6 +26,10 @@ class Controller:
 			example_path=EXAMPLES_DISPATCHER_PATH,
 		)
 		self.write_list: dict = {}
+
+		# TESTS
+		self.current_device = None
+		self.tests = {}
 
 	# [ EVENTS ]
 	def on_event(self, name: str, event_type: str, event_data):
@@ -39,6 +44,9 @@ class Controller:
 		asyncio.create_task(
 			self.dispatcher.add_async(name=name, event_type=event_type, data=event_data)
 		)
+
+		if event_type in self.tests:
+			self.tests[event_type] = True
 
 	# [ Reading Events ]
 	def on_start(self, name: str):
@@ -58,6 +66,7 @@ class Controller:
 			return
 		asyncio.create_task(self.integration.on_tag_integration(tag=tag))
 		asyncio.create_task(self.dispatcher.add_async(name=name, event_type='tag', data=tag))
+		self.tests['tag'] = True
 
 	def on_existing_tag(self, name: str, tag: dict):
 		asyncio.create_task(self.check_target(tag))
@@ -127,3 +136,24 @@ class Controller:
 				password='00000000',
 			),
 		)
+
+	# [ TEST ]
+	def reset_tests(self):
+		self.current_device = None
+		self.tests = {}
+		logging.info('Reset tests to default values')
+
+	async def set_test_device(self, device_name: str):
+		if device_name not in AVAILABLE_DEVICES:
+			logging.error(f'Device {device_name} is not available for testing')
+			return False
+		self.current_device = device_name
+		current_device = self.devices.get_devices()
+		for device in current_device:
+			await self.devices.delete_device_config(device)
+
+		default_config: dict = get_default_config(device_name)
+		await self.devices.create_device_config(device_name, default_config.get('config', {}))
+		self.tests = default_config.get('tests', {})
+
+		return True

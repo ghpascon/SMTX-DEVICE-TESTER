@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from smartx_rfid.utils.path import get_prefix_from_path
 from app.schemas.write_list import WriteListPrefixModel
 from app.services import rfid_manager
+from app.services.rfid.default_configs import AVAILABLE_DEVICES
 
 router_prefix = get_prefix_from_path(__file__)
 router = APIRouter(prefix=router_prefix, tags=[router_prefix])
@@ -88,3 +89,52 @@ async def delete_tid_from_write_list(tid: str):
 		return JSONResponse(
 			status_code=400, content={'message': f'Failed to remove tag {tid} from write list'}
 		)
+
+
+# [ TESTS ]
+@router.get(
+	'/get_available_devices',
+	summary='Get available devices for testing',
+)
+def get_available_devices():
+	return AVAILABLE_DEVICES or []
+
+
+@router.get(
+	'/get_current_tests',
+	summary='Get current device for testing',
+)
+def get_current_tests():
+	return {
+		'current_device': rfid_manager.controller.current_device,
+		'tests': rfid_manager.controller.tests,
+	}
+
+
+@router.post(
+	'/set_test_device/{device_name}',
+	summary='Set the device for testing',
+)
+async def set_test_device(device_name: str):
+	if device_name not in AVAILABLE_DEVICES:
+		return JSONResponse(
+			status_code=400,
+			content={'message': f'Device {device_name} is not available for testing'},
+		)
+
+	success = await rfid_manager.controller.set_test_device(device_name)
+	if success:
+		return {'message': f'Device {device_name} set for testing successfully'}
+	else:
+		return JSONResponse(
+			status_code=500, content={'message': f'Failed to set device {device_name} for testing'}
+		)
+
+
+@router.delete(
+	'/reset_tests',
+	summary='Reset the tests to default values',
+)
+async def reset_tests():
+	rfid_manager.controller.reset_tests()
+	return {'message': 'Tests reset to default values successfully'}
