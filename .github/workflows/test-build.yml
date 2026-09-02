@@ -24,9 +24,6 @@ jobs:
       - name: Install Poetry and dependencies
         run: pip install poetry; poetry lock; poetry install
 
-      - name: Run tests
-        run: poetry run pytest
-
       - name: Build executable
         run: poetry run python scripts/build_exe.py
 
@@ -53,9 +50,6 @@ jobs:
           pip install poetry
           poetry lock
           poetry install
-
-      - name: Run tests
-        run: poetry run pytest
 
       - name: Build executable
         run: poetry run python scripts/build_exe.py

@@ -182,14 +182,16 @@ class Controller:
 		if reader_type not in AVAILABLE_DEVICES:
 			logging.error(f'Reader type {reader_type} is not available')
 			return None
-		if reader_type == 'X714':
+
+		reader_model = AVAILABLE_DEVICES[reader_type]['config'].get('READER')
+		if reader_model == 'X714':
 			return serial_number
 		else:
 			reader = self.devices.get_device(reader_type)
 			if not reader:
 				logging.error(f'Reader type {reader_type} not found in devices')
 				return None
-			hostname = reader.hostname or reader.ip or reader.ip_address
+			hostname = reader.hostname or reader.ip or reader.ip_address or reader.serial_number
 			if not hostname:
 				logging.error(f'No hostname found for reader type {reader_type}')
 				return None
