@@ -13,8 +13,7 @@
       {# navbar #}
       <nav class="hidden md:flex items-center space-x-4 lg:space-x-6 flex-shrink-0">
 
-        <a href="/"
-          class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
+        <a href="/" class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
           Home
         </a>
 
@@ -25,23 +24,18 @@
             Settings ▾
           </button>
 
-          <div x-show="open"
-            @click.away="open = false"
-            x-transition
+          <div x-show="open" @click.away="open = false" x-transition
             class="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50">
 
-            <a href="/settings/devices"
-              class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+            <a href="/settings/devices" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
               Devices
             </a>
 
-            <a href="/settings/dispatches"
-              class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+            <a href="/settings/dispatches" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
               Dispatches
             </a>
 
-            <a href="/settings/application"
-              class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+            <a href="/settings/application" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
               Application
             </a>
           </div>
@@ -55,18 +49,14 @@
             Write ▾
           </button>
 
-          <div x-show="open"
-            @click.away="open = false"
-            x-transition
+          <div x-show="open" @click.away="open = false" x-transition
             class="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50">
 
-            <a href="/write/write_epc"
-              class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+            <a href="/write/write_epc" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
               Write EPC
             </a>
 
-            <a href="/write/write_list"
-              class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+            <a href="/write/write_list" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
               Write List
             </a>
           </div>
@@ -85,52 +75,40 @@
 
 
         <!-- Report -->
-        <a href="{{ url_for('generate_table_report', table_name='tags') }}?limit=0"
-          data-tag-report="true"
+        <a href="{{ url_for('generate_table_report', table_name='tags') }}?limit=0" data-tag-report="true"
           class="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900 hover:border-gray-400 font-medium text-sm lg:text-base whitespace-nowrap">
           Tag Report
         </a>
 
 
         <!-- DEV -->
-        <a href="/logs"
-          class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
+        <a href="/logs" class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
           Logs
         </a>
 
-        <a href="/docs"
-          class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
+        <a href="/docs" class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
           Docs
         </a>
 
-        <a href="/license"
-          class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
+        <a href="/license" class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
           License
         </a>
 
-        <a href="/metrics"
-          class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
+        <a href="/metrics" class="text-gray-700 hover:text-gray-900 font-medium text-sm lg:text-base whitespace-nowrap">
           Metrics
         </a>
-
+        {% include "includes/_user.html" %}
       </nav>
 
 
       {# Mobile menu button #}
       <div class="md:hidden flex-shrink-0" x-data="{ open: false }">
 
-        <button @click="open = !open"
-          class="text-gray-700 hover:text-gray-900 p-2">
+        <button @click="open = !open" class="text-gray-700 hover:text-gray-900 p-2">
 
-          <svg class="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
-            <path stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 6h16M4 12h16M4 18h16" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
 
           </svg>
 
@@ -138,8 +116,7 @@
 
 
         {# Mobile menu dropdown #}
-        <div x-show="open"
-          @click.away="open = false"
+        <div x-show="open" @click.away="open = false"
           class="absolute right-4 top-16 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[150px]"
           id="mobile-menu-dropdown">
 

@@ -49,6 +49,22 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+
+def include_object(object, name, type_, reflected, compare_to):
+	"""Exclude objects present in DB but missing from models to avoid DROP operations.
+
+	When Alembic autogenerate compares the database to the model metadata, objects
+	that are present only in the database (reflected==True and compare_to is None)
+	would normally become DROP operations. Returning False here prevents those
+	objects from being included in autogenerate output.
+	"""
+	# If object exists only in the database and has no counterpart in the metadata,
+	# skip it so autogenerate doesn't emit a DROP for it.
+	if reflected and compare_to is None:
+		return False
+	return True
+
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -73,6 +89,9 @@ def run_migrations_offline() -> None:
 		target_metadata=target_metadata,
 		literal_binds=True,
 		dialect_opts={'paramstyle': 'named'},
+		include_object=include_object,
+		compare_type=True,
+		compare_server_default=True,
 	)
 
 	with context.begin_transaction():
@@ -98,7 +117,13 @@ def run_migrations_online() -> None:
 	)
 
 	with connectable.connect() as connection:
-		context.configure(connection=connection, target_metadata=target_metadata)
+		context.configure(
+			connection=connection,
+			target_metadata=target_metadata,
+			include_object=include_object,
+			compare_type=True,
+			compare_server_default=True,
+		)
 
 		with context.begin_transaction():
 			context.run_migrations()

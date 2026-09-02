@@ -1,9 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from smartx_rfid.utils.path import get_prefix_from_path
 from app.schemas.write_list import WriteListPrefixModel
 from app.services import rfid_manager
 from app.services.rfid.default_configs import AVAILABLE_DEVICES
+from app.core.user import get_user
 
 router_prefix = get_prefix_from_path(__file__)
 router = APIRouter(prefix=router_prefix, tags=[router_prefix])
@@ -138,3 +139,32 @@ async def set_test_device(device_name: str):
 async def reset_tests():
 	rfid_manager.controller.reset_tests()
 	return {'message': 'Tests reset to default values successfully'}
+
+
+@router.get(
+	'/validate_tests',
+	summary='Validate the current tests in the RFID controller',
+)
+async def validate_tests():
+	return rfid_manager.controller.validate_tests()
+
+
+@router.post(
+	'/mark_tested',
+	summary='Mark a test as passed for a specific serial number',
+)
+async def mark_tested(request: Request):
+	user_info = get_user(request)
+	if not user_info:
+		return JSONResponse(
+			status_code=401,
+			content={'message': 'Unauthorized: User information not found'},
+		)
+	success, data = rfid_manager.controller.mark_tested(user_info)
+	if success:
+		return {'message': 'Leitor marcado como testado com sucesso'}
+	else:
+		return JSONResponse(
+			status_code=400,
+			content={'message': data},
+		)

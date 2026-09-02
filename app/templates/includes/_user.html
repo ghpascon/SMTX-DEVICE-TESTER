@@ -1,0 +1,66 @@
+<div id="userWidget" class="hidden">
+  <div class="text-center">
+    <span id="userTrigger"
+      class="block text-sm text-gray-700 cursor-pointer border border-gray-300 rounded px-2 py-1 hover:bg-gray-100"
+      onclick="toggleUserModal()">
+      <strong id="currentUsername">Usuário</strong>
+    </span>
+  </div>
+
+  <script>
+    let CURRENT_USER_ID = null;
+
+    async function loadCurrentUser() {
+      try {
+        const res = await fetch("{{ url_for('get_current_user') }}", { credentials: 'same-origin' });
+        if (!res.ok) {
+          return;
+        }
+        const user = await res.json();
+        CURRENT_USER_ID = user.user_id ?? null;
+        const usernameEl = document.getElementById('currentUsername');
+        const modalUsernameEl = document.getElementById('modalUsername');
+        if (usernameEl) usernameEl.textContent = user.username || 'Usuário';
+        if (modalUsernameEl) modalUsernameEl.textContent = user.username || 'Usuário';
+        document.getElementById('userWidget').classList.remove('hidden');
+      } catch (err) {
+        console.error('Failed to load current user', err);
+      }
+    }
+
+    function toggleUserModal() {
+      document.getElementById("userModal").classList.toggle("hidden");
+    }
+
+    async function handleLogout(event) {
+      event.preventDefault();
+      try {
+        await fetch("{{ url_for('logout') }}", { method: "POST", credentials: 'same-origin' });
+      } catch (error) {
+        alert("Erro ao fazer logout.");
+      }
+      window.location.replace("{{ url_for('auth') }}");
+    }
+
+    document.addEventListener('DOMContentLoaded', loadCurrentUser);
+  </script>
+
+  <!-- User Modal -->
+  <div id="userModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 w-80">
+      <h2 class="text-lg font-bold mb-4">Usuário Logado</h2>
+
+      <p class="text-sm text-gray-700 mb-4">
+        <strong>Usuário:</strong> <span id="modalUsername">Usuário</span>
+      </p>
+
+      <form method="post" action="{{ url_for('logout') }}" onsubmit="handleLogout(event)">
+        <button type="submit"
+          class="w-full px-4 py-2 bg-red-500 text-white text-sm rounded hover:bg-red-600 mt-4">Logout</button>
+      </form>
+
+      <button class="mt-4 w-full px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+        onclick="toggleUserModal()">Fechar</button>
+    </div>
+  </div>
+</div>

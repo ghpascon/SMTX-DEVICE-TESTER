@@ -14,6 +14,9 @@ import logging
 from app.services.license import license_manager
 from smartx_rfid.schemas.tag import WriteTagValidator
 from .default_configs import AVAILABLE_DEVICES, get_default_config
+from smartx_rfid.models.users import Users
+from smartx_rfid.smtx_db import SmtxDb
+from datetime import datetime
 
 
 class Controller:
@@ -31,19 +34,11 @@ class Controller:
 		self.current_device = None
 		self.tests = {}
 
+		self.smtx_db = SmtxDb(settings.DATABASE_URL)  # Store the db_manager for user retrieval
+
 	# [ EVENTS ]
 	def on_event(self, name: str, event_type: str, event_data):
 		logging.info(f'[ EVENT ] {name} - {event_type}: {event_data}')
-		if not license_manager.validate_license():
-			return
-		asyncio.create_task(
-			self.integration.on_event_integration(
-				name=name, event_type=event_type, event_data=event_data
-			)
-		)
-		asyncio.create_task(
-			self.dispatcher.add_async(name=name, event_type=event_type, data=event_data)
-		)
 
 		if event_type in self.tests:
 			self.tests[event_type] = True
@@ -51,8 +46,6 @@ class Controller:
 	# [ Reading Events ]
 	def on_start(self, name: str):
 		logging.info(f'[ START ] {name}')
-		if not license_manager.validate_license():
-			return
 		if settings.CLEAR_ON_START:
 			self.tags.remove_tags_by_device(device=name)
 
@@ -64,8 +57,6 @@ class Controller:
 		logging.info(f'[ TAG ] {name} - {tag}')
 		if not license_manager.validate_license():
 			return
-		asyncio.create_task(self.integration.on_tag_integration(tag=tag))
-		asyncio.create_task(self.dispatcher.add_async(name=name, event_type='tag', data=tag))
 		self.tests['tag'] = True
 
 	def on_existing_tag(self, name: str, tag: dict):
@@ -73,8 +64,6 @@ class Controller:
 		if settings.ALWAYS_SEND:
 			if not license_manager.validate_license():
 				return
-			asyncio.create_task(self.integration.on_tag_integration(tag=tag))
-			asyncio.create_task(self.dispatcher.add_async(name=name, event_type='tag', data=tag))
 
 	# [ WRITE LIST ]
 	def create_write_list_prefix(self, epcs: list, prefix: str):
@@ -157,3 +146,71 @@ class Controller:
 		self.tests = default_config.get('tests', {})
 
 		return True
+
+	def validate_tests(self):
+		if not self.current_device:
+			return False
+		for test, passed in self.tests.items():
+			if not passed:
+				return False
+		return True
+
+	# USER
+	def get_user_by_username(self, username: str):
+		try:
+			with self.smtx_db.db_manager.get_session() as session:
+				result = session.query(Users).filter_by(username=username).first()
+				return result.to_dict() if result else None
+		except Exception as e:
+			logging.error(f'Error fetching user with username {username}: {e}')
+			return None
+
+	def mark_tested(self, user_info: dict):
+		if not self.current_device:
+			msg = 'Sem dispositivo definido para teste. Não é possível marcar como testado.'
+			logging.error(msg)
+			return False, msg
+		if not self.validate_tests():
+			msg = f'Nem todos os testes foram aprovados para o dispositivo {self.current_device}. Não é possível marcar como testado.'
+			logging.error(msg)
+			return False, msg
+		try:
+			serial_number = self.devices.get_device_info(self.current_device)[0].get(
+				'serial_number'
+			)
+			reader = self.smtx_db.get_reader_by_serial(serial_number)
+			if not reader:
+				reader_type = (
+					get_default_config(self.current_device).get('config', {}).get('READER')
+				)
+				reader_types = self.smtx_db.get_reader_types()
+				for r in reader_types:
+					if r.get('name') == reader_type:
+						success, msg = self.smtx_db.add_reader(
+							r.get('id'), serial_number, serial_number
+						)
+						if not success:
+							logging.error(
+								f'Erro ao adicionar o leitor {self.current_device} com serial {serial_number}: {msg}'
+							)
+							return False, msg
+
+						# reload reader
+						reader = self.smtx_db.get_reader_by_serial(serial_number)
+						break
+				else:
+					msg = f'Tipo de leitor {reader_type} não encontrado no banco de dados. Não é possível marcar como testado.'
+					logging.error(msg)
+					return False, msg
+
+			test_info = {
+				'timestamp': datetime.now().astimezone().isoformat(),
+				'tested_by': user_info,
+				'tests': self.tests,
+				'reader_info': reader,
+			}
+			return self.smtx_db.set_test_info_for_reader(reader.get('id'), test_info)
+		except Exception as e:
+			msg = f'Erro ao marcar o dispositivo {self.current_device} como testado: {e}'
+			logging.error(msg)
+			return False, msg

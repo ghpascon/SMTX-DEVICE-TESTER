@@ -39,6 +39,19 @@
         </div>
         <div x-show="Object.keys(tests).length === 0" class="text-sm text-gray-400 mt-2">Nenhum teste carregado</div>
     </div>
+
+    <div class="mt-4">
+        <button @click="markTested()" :disabled="!canFinish || marking"
+            class="w-full py-3 text-base font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            type="button">
+            <svg x-show="marking" class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span x-text="marking ? 'Processando...' : 'Marcar como testado'"></span>
+        </button>
+    </div>
 </div>
 
 <script>
@@ -48,12 +61,18 @@
             tests: {},
             resetting: false,
             reloading: false,
+            marking: false,
+            canFinish: false,
             lastPayload: '',
             lastUpdated: null,
 
             init() {
                 this.load();
-                TemplateUtils.bindVisibilityPolling(this, this.load, 1000);
+                this.validateTests();
+                TemplateUtils.bindVisibilityPolling(this, async () => {
+                    await this.load();
+                    await this.validateTests();
+                }, 1000);
             },
 
             destroy() {
@@ -89,17 +108,68 @@
                     if (res.ok) {
                         // refresh current tests info
                         await this.load();
-                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Dispositivo recarregado', type: 'success' } }));
+                        window.showAlert('Dispositivo recarregado', 'success');
                     } else {
                         let data = {};
                         try { data = await res.json(); } catch (e) { }
-                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: data.message || 'Falha ao recarregar dispositivo', type: 'error' } }));
+                        window.showAlert(data.message || 'Falha ao recarregar dispositivo', 'error');
                     }
                 } catch (err) {
                     console.error('Erro ao recarregar device', err);
-                    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Erro ao recarregar dispositivo', type: 'error' } }));
+                    window.showAlert('Erro ao recarregar dispositivo', 'error');
                 } finally {
                     this.reloading = false;
+                }
+            },
+
+            async validateTests() {
+                try {
+                    const res = await fetch('{{ url_for("validate_tests") }}');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.canFinish = data === true || data?.valid === true;
+                    } else {
+                        this.canFinish = false;
+                    }
+                } catch (err) {
+                    this.canFinish = false;
+                }
+            },
+
+            async markTested() {
+                if (!this.canFinish || this.marking) return;
+                this.marking = true;
+                try {
+                    const res = await fetch('{{ url_for("mark_tested") }}', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok) {
+                        window.showAlert(data.message || 'Leitor marcado como testado', 'success');
+                        await this.resetTestsSilent();
+                    } else {
+                        const errMsg = (data && data.message) ? data.message : `Erro ${res.status}: Falha ao marcar como testado`;
+                        window.showAlert(errMsg, 'error');
+                    }
+                } catch (err) {
+                    console.error('Erro ao marcar como testado', err);
+                    window.showAlert('Erro ao marcar como testado', 'error');
+                } finally {
+                    this.marking = false;
+                }
+            },
+
+            async resetTestsSilent() {
+                try {
+                    const res = await fetch('{{ url_for("reset_tests") }}', { method: 'DELETE' });
+                    if (res.ok) {
+                        window.location.href = '{{ url_for("index") }}';
+                    } else {
+                        let data = {};
+                        try { data = await res.json(); } catch (e) { }
+                        window.showAlert(data.message || 'Falha ao resetar testes', 'error');
+                    }
+                } catch (err) {
+                    console.error('Erro ao resetar testes', err);
+                    window.showAlert('Erro ao resetar testes', 'error');
                 }
             },
 
@@ -114,11 +184,11 @@
                     } else {
                         let data = {};
                         try { data = await res.json(); } catch (e) { }
-                        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: data.message || 'Falha ao resetar testes', type: 'error' } }));
+                        window.showAlert(data.message || 'Falha ao resetar testes', 'error');
                     }
                 } catch (err) {
                     console.error('Erro ao resetar testes', err);
-                    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Erro ao resetar testes', type: 'error' } }));
+                    window.showAlert('Erro ao resetar testes', 'error');
                 } finally {
                     this.resetting = false;
                 }
