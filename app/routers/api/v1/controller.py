@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 from smartx_rfid.utils.path import get_prefix_from_path
 from app.schemas.write_list import WriteListPrefixModel
 from app.services import rfid_manager
 from app.services.rfid.default_configs import AVAILABLE_DEVICES
 from app.core.user import get_user
+import json
 
 router_prefix = get_prefix_from_path(__file__)
 router = APIRouter(prefix=router_prefix, tags=[router_prefix])
@@ -102,6 +103,19 @@ def get_available_devices():
 
 
 @router.get(
+	'/get_available_device_configs/{device_name}',
+	summary='Get available device configs for testing',
+)
+def get_available_device_configs(device_name: str):
+	if device_name not in AVAILABLE_DEVICES:
+		return JSONResponse(
+			status_code=400,
+			content={'message': f'Device {device_name} is not available for testing'},
+		)
+	return AVAILABLE_DEVICES[device_name].get('config', {})
+
+
+@router.get(
 	'/get_current_tests',
 	summary='Get current device for testing',
 )
@@ -116,14 +130,22 @@ def get_current_tests():
 	'/set_test_device/{device_name}',
 	summary='Set the device for testing',
 )
-async def set_test_device(device_name: str):
+async def set_test_device(device_name: str, device_config: dict | str = Form(None)):
+	if isinstance(device_config, str):
+		try:
+			device_config = json.loads(device_config)
+		except Exception as e:
+			return JSONResponse(
+				status_code=400,
+				content={'message': f'Invalid device config format: {e}'},
+			)
 	if device_name not in AVAILABLE_DEVICES:
 		return JSONResponse(
 			status_code=400,
 			content={'message': f'Device {device_name} is not available for testing'},
 		)
 
-	success = await rfid_manager.controller.set_test_device(device_name)
+	success = await rfid_manager.controller.set_test_device(device_name, device_config)
 	if success:
 		return {'message': f'Device {device_name} set for testing successfully'}
 	else:

@@ -33,6 +33,7 @@ class Controller:
 
 		# TESTS
 		self.current_device = None
+		self.current_config = None
 		self.tests = {}
 
 		self.smtx_db = SmtxDb(settings.DATABASE_URL)  # Store the db_manager for user retrieval
@@ -145,7 +146,7 @@ class Controller:
 		self.tests = {}
 		logging.info('Reset tests to default values')
 
-	async def set_test_device(self, device_name: str):
+	async def set_test_device(self, device_name: str, config: dict = None):
 		if device_name not in AVAILABLE_DEVICES:
 			logging.error(f'Device {device_name} is not available for testing')
 			return False
@@ -155,7 +156,13 @@ class Controller:
 			await self.devices.delete_device_config(device)
 
 		default_config: dict = deepcopy(AVAILABLE_DEVICES.get(device_name, {}))
-		await self.devices.create_device_config(device_name, default_config.get('config', {}))
+		if config is not None:
+			await self.devices.create_device_config(device_name, config)
+			self.current_config = config
+		else:
+			config = default_config.get('config', {})
+			await self.devices.create_device_config(device_name, config)
+			self.current_config = config
 		self.tests = default_config.get('tests', {})
 
 		return True
@@ -210,6 +217,10 @@ class Controller:
 			serial_number = self.devices.get_device_info(self.current_device)[0].get(
 				'serial_number'
 			)
+			if not serial_number or serial_number.lower() == 'unknown':
+				msg = f'Serial number não encontrado para o dispositivo {self.current_device}. Não é possível marcar como testado.'
+				logging.error(msg)
+				return False, msg
 			reader = self.smtx_db.get_reader_by_serial(serial_number)
 			if not reader:
 				reader_type = (
@@ -239,7 +250,12 @@ class Controller:
 				'tested_by': user_info,
 				'tests': self.tests,
 				'reader_type': self.current_device,
-				'reader_info': reader,
+				'reader_config': self.current_config,
+				'reader_info': {
+					k: v
+					for k, v in reader.items()
+					if k not in ['created_at', 'updated_at', 'can_generate_license', 'test_info']
+				},
 			}
 			return self.smtx_db.set_test_info_for_reader(reader.get('id'), test_info)
 		except Exception as e:

@@ -16,6 +16,29 @@
       </div>
 
       <div x-show="devices.length === 0" class="text-center text-gray-500 mt-6">Nenhum dispositivo disponível</div>
+
+      <!-- Config modal (visualização apenas; não salva) -->
+      <div x-show="showConfigModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-black opacity-50" @click="closeModal()"></div>
+        <div x-show="showConfigModal" x-transition
+          class="bg-white rounded-lg shadow-lg max-w-3xl w-full z-50 p-6 relative">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Configuração do dispositivo: <span x-text="editingDeviceName"></span></h3>
+            <button @click="closeModal()" class="text-gray-500 hover:text-gray-700">Fechar</button>
+          </div>
+          <div>
+            <div x-show="loadingConfig" class="text-sm text-gray-500 mb-2">Carregando configuração...</div>
+            <textarea x-model="configText" class="w-full h-64 p-2 font-mono text-sm border rounded"
+              spellcheck="false"></textarea>
+            <div class="text-xs text-gray-500 mt-2">Edite a configuração se desejar — será enviada como form ao servidor
+              para testes.</div>
+          </div>
+          <div class="mt-4 flex gap-2 justify-end">
+            <button @click="selectOnly()" class="px-4 py-2 bg-green-600 text-white rounded">Enviar e Selecionar</button>
+            <button @click="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded">Cancelar</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -26,6 +49,13 @@
       devices: [],
       lastPayload: '',
       colors: ['bg-rose-600', 'bg-amber-500', 'bg-sky-600', 'bg-lime-600', 'bg-indigo-600', 'bg-fuchsia-600', 'bg-emerald-600', 'bg-yellow-500', 'bg-pink-600'],
+
+      // Modal / editor state
+      showConfigModal: false,
+      editingDeviceName: null,
+      configText: '',
+      loadingConfig: false,
+      saving: false,
 
       async init() {
         await this.loadDevices();
@@ -49,21 +79,76 @@
         }
       },
 
+      // Open editor modal and load default config for the selected device
       async choose(deviceName) {
         if (!deviceName) return;
-        const endpoint = '{{ url_for("set_test_device", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(deviceName));
+        this.editingDeviceName = deviceName;
+        await this.loadDeviceConfig(deviceName);
+        this.showConfigModal = true;
+      },
+
+      async loadDeviceConfig(deviceName) {
+        this.loadingConfig = true;
         try {
-          const res = await fetch(endpoint, { method: 'POST' });
+          const endpoint = '{{ url_for("get_available_device_configs", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(deviceName));
+          const res = await fetch(endpoint);
           if (res.ok) {
-            window.location.href = '{{ url_for("index") }}';
+            const data = await res.json();
+            this.configText = JSON.stringify(data || {}, null, 2);
           } else {
             let data = {};
             try { data = await res.json(); } catch { }
-            window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: data.message || 'Falha ao selecionar dispositivo', type: 'error' } }));
+            this.configText = '{}';
+            window.showAlert(data.message || 'Falha ao carregar configuração', 'error');
           }
         } catch (err) {
-          console.error('Erro ao definir dispositivo de teste', err);
-          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Erro ao definir dispositivo', type: 'error' } }));
+          console.error('Erro ao carregar configuração', err);
+          this.configText = '{}';
+          window.showAlert('Erro ao carregar configuração', 'error');
+        } finally {
+          this.loadingConfig = false;
+        }
+      },
+
+      closeModal() {
+        this.showConfigModal = false;
+        this.editingDeviceName = null;
+        this.configText = '';
+      },
+
+      // Envia a config editada como FormData para set_test_device e seleciona
+      async selectOnly() {
+        if (this.saving) return;
+        this.saving = true;
+        try {
+          // valida JSON antes de enviar
+          const payload = this.configText || '{}';
+          try {
+            JSON.parse(payload);
+          } catch (e) {
+            window.showAlert('Configuração inválida: JSON malformado', 'error');
+            this.saving = false;
+            return;
+          }
+
+          const fd = new FormData();
+          fd.append('device_config', payload);
+
+          const setUrl = '{{ url_for("set_test_device", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(this.editingDeviceName));
+          const resSet = await fetch(setUrl, { method: 'POST', body: fd });
+          if (resSet.ok) {
+            window.showAlert('Dispositivo selecionado', 'success');
+            window.location.href = '{{ url_for("index") }}';
+          } else {
+            let data = {};
+            try { data = await resSet.json(); } catch { }
+            window.showAlert(data.message || 'Falha ao selecionar dispositivo', 'error');
+          }
+        } catch (err) {
+          console.error('Erro ao selecionar dispositivo', err);
+          window.showAlert('Erro ao selecionar dispositivo', 'error');
+        } finally {
+          this.saving = false;
         }
       }
     };
