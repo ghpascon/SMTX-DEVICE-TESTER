@@ -216,7 +216,7 @@ class Controller:
 					AVAILABLE_DEVICES.get(self.current_device, {}).get('config', {}).get('READER')
 				)
 				reader_types = self.smtx_db.get_reader_types()
-				hostname = self.get_reader_type_hostname(reader_type)
+				hostname = self.get_reader_type_hostname(reader_type, serial_number)
 				for r in reader_types:
 					if r.get('name') == reader_type:
 						success, msg = self.smtx_db.add_reader(r.get('id'), serial_number, hostname)
@@ -238,6 +238,7 @@ class Controller:
 				'timestamp': datetime.now().astimezone().isoformat(),
 				'tested_by': user_info,
 				'tests': self.tests,
+				'reader_type': self.current_device,
 				'reader_info': reader,
 			}
 			return self.smtx_db.set_test_info_for_reader(reader.get('id'), test_info)
