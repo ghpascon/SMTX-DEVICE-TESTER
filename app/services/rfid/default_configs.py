@@ -1,28 +1,39 @@
-import logging
-from copy import deepcopy
-
-AVAILABLE_DEVICES = ['XPAD']
-
-DEFAULT_XPAD_CONFIG = {
-	'tests': {
-		'connection': False,
-		'reading': False,
-		'tag': False,
-		'serial_number': False,
+AVAILABLE_DEVICES = {
+	'XPAD': {
+		'tests': {
+			'connection': False,
+			'reading': False,
+			'tag': False,
+			'serial_number': False,
+		},
+		'config': {
+			'READER': 'X714',
+			'BUZZER': True,
+			'SESSION': 0,
+			'START_READING': True,
+			'READ_POWER': 20,
+		},
 	},
-	'config': {
-		'READER': 'X714',
-		'BUZZER': True,
-		'SESSION': 0,
-		'START_READING': True,
-		'READ_POWER': 25,
+	'X714': {
+		'tests': {
+			'connection': False,
+			'reading': False,
+			'tag': False,
+			'serial_number': False,
+			'read_ant_1': False,
+			'read_ant_2': False,
+			'read_ant_3': False,
+			'read_ant_4': False,
+			'usb_power_source': False,
+			'ext_power_source': False,
+		},
+		'config': {
+			'READER': 'X714',
+			'BUZZER': True,
+			'SESSION': 0,
+			'START_READING': True,
+			'READ_POWER': 20,
+			'ACTIVE_ANT': [1, 2, 3, 4],
+		},
 	},
 }
-
-
-def get_default_config(device_name: str):
-	if device_name == 'XPAD':
-		return deepcopy(DEFAULT_XPAD_CONFIG)
-	else:
-		logging.error(f'Device {device_name} is not available for testing')
-		return None

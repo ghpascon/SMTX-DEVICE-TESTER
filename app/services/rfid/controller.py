@@ -13,10 +13,11 @@ from app.core import settings
 import logging
 from app.services.license import license_manager
 from smartx_rfid.schemas.tag import WriteTagValidator
-from .default_configs import AVAILABLE_DEVICES, get_default_config
+from .default_configs import AVAILABLE_DEVICES
 from smartx_rfid.models.users import Users
 from smartx_rfid.smtx_db import SmtxDb
 from datetime import datetime
+from copy import deepcopy
 
 
 class Controller:
@@ -43,6 +44,14 @@ class Controller:
 		if event_type in self.tests:
 			self.tests[event_type] = True
 
+		if event_type == 'receive':
+			if event_data.startswith('#POWER'):
+				source = event_data.split(':')[1].strip()
+				if source == 'USB' and 'usb_power_source' in self.tests:
+					self.tests['usb_power_source'] = True
+				elif source == 'EXT' and 'ext_power_source' in self.tests:
+					self.tests['ext_power_source'] = True
+
 	# [ Reading Events ]
 	def on_start(self, name: str):
 		logging.info(f'[ START ] {name}')
@@ -58,12 +67,16 @@ class Controller:
 		if not license_manager.validate_license():
 			return
 		self.tests['tag'] = True
+		self.read_ant_test_event(tag.get('ant', 0))
 
 	def on_existing_tag(self, name: str, tag: dict):
 		asyncio.create_task(self.check_target(tag))
-		if settings.ALWAYS_SEND:
-			if not license_manager.validate_license():
-				return
+		self.read_ant_test_event(tag.get('ant', 0))
+
+	def read_ant_test_event(self, ant):
+		field = f'read_ant_{ant}'
+		if field in self.tests:
+			self.tests[field] = True
 
 	# [ WRITE LIST ]
 	def create_write_list_prefix(self, epcs: list, prefix: str):
@@ -141,7 +154,7 @@ class Controller:
 		for device in current_device:
 			await self.devices.delete_device_config(device)
 
-		default_config: dict = get_default_config(device_name)
+		default_config: dict = deepcopy(AVAILABLE_DEVICES.get(device_name, {}))
 		await self.devices.create_device_config(device_name, default_config.get('config', {}))
 		self.tests = default_config.get('tests', {})
 
@@ -165,6 +178,23 @@ class Controller:
 			logging.error(f'Error fetching user with username {username}: {e}')
 			return None
 
+	def get_reader_type_hostname(self, reader_type: str, serial_number: str = None):
+		if reader_type not in AVAILABLE_DEVICES:
+			logging.error(f'Reader type {reader_type} is not available')
+			return None
+		if reader_type == 'X714':
+			return serial_number
+		else:
+			reader = self.devices.get_device(reader_type)
+			if not reader:
+				logging.error(f'Reader type {reader_type} not found in devices')
+				return None
+			hostname = reader.hostname or reader.ip or reader.ip_address
+			if not hostname:
+				logging.error(f'No hostname found for reader type {reader_type}')
+				return None
+			return hostname
+
 	def mark_tested(self, user_info: dict):
 		if not self.current_device:
 			msg = 'Sem dispositivo definido para teste. Não é possível marcar como testado.'
@@ -181,14 +211,13 @@ class Controller:
 			reader = self.smtx_db.get_reader_by_serial(serial_number)
 			if not reader:
 				reader_type = (
-					get_default_config(self.current_device).get('config', {}).get('READER')
+					AVAILABLE_DEVICES.get(self.current_device, {}).get('config', {}).get('READER')
 				)
 				reader_types = self.smtx_db.get_reader_types()
+				hostname = self.get_reader_type_hostname(reader_type)
 				for r in reader_types:
 					if r.get('name') == reader_type:
-						success, msg = self.smtx_db.add_reader(
-							r.get('id'), serial_number, serial_number
-						)
+						success, msg = self.smtx_db.add_reader(r.get('id'), serial_number, hostname)
 						if not success:
 							logging.error(
 								f'Erro ao adicionar o leitor {self.current_device} com serial {serial_number}: {msg}'

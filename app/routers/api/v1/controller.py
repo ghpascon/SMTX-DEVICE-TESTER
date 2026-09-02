@@ -98,7 +98,7 @@ async def delete_tid_from_write_list(tid: str):
 	summary='Get available devices for testing',
 )
 def get_available_devices():
-	return AVAILABLE_DEVICES or []
+	return list(AVAILABLE_DEVICES.keys()) or []
 
 
 @router.get(
