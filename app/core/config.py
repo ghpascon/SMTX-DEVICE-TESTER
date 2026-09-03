@@ -72,6 +72,12 @@ class Settings:
 		if not isinstance(self.ALLOW_EXTERNAL_CONNECTIONS, bool):
 			self.ALLOW_EXTERNAL_CONNECTIONS = True
 
+		self.PRINTER_NAME: str | None = data.get('PRINTER_NAME', 'PRINTER')
+		self.ZPL: str | None = data.get(
+			'ZPL',
+			'^XA^CI28^MD30^MMT^PW384^LL200^LS0^CF0,40^FO200,50^FDSERIAL^FS^CF0,30^FO200,110^FB150,10,0,L^FD{serial}^FS^FO40,20^BQN,2,6^FDQA,{serial}^FS^XZ',
+		)
+
 		if not os.path.exists(self._config_path):
 			self.save()  # Save default config if file doesn't exist
 

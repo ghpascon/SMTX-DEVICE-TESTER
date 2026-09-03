@@ -6,6 +6,7 @@ from app.services import rfid_manager
 from app.services.rfid.default_configs import AVAILABLE_DEVICES
 from app.core.user import get_user
 import json
+from app.core import settings
 
 router_prefix = get_prefix_from_path(__file__)
 router = APIRouter(prefix=router_prefix, tags=[router_prefix])
@@ -182,11 +183,21 @@ async def mark_tested(request: Request):
 			status_code=401,
 			content={'message': 'Unauthorized: User information not found'},
 		)
+	# MARK TESTED
 	success, data = rfid_manager.controller.mark_tested(user_info)
-	if success:
-		return {'message': 'Leitor marcado como testado com sucesso'}
-	else:
+	if not success:
 		return JSONResponse(
 			status_code=400,
 			content={'message': data},
 		)
+	# PRINT LABEL
+	serial = str(data)
+	success, data = rfid_manager.devices.print(
+		settings.PRINTER_NAME, settings.ZPL.format(serial=serial)
+	)
+	if not success:
+		return JSONResponse(
+			status_code=500,
+			content={'message': f'Falha ao imprimir etiqueta {serial}: {data}'},
+		)
+	return {'message': 'Etiqueta impressa e leitor marcado como testado com sucesso'}

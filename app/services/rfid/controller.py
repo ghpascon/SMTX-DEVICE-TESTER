@@ -151,9 +151,10 @@ class Controller:
 			logging.error(f'Device {device_name} is not available for testing')
 			return False
 		self.current_device = device_name
-		current_device = self.devices.get_devices()
-		for device in current_device:
-			await self.devices.delete_device_config(device)
+		current_devices = self.devices.get_devices()
+		for device in current_devices:
+			if not device == settings.PRINTER_NAME:
+				await self.devices.delete_device_config(device)
 
 		default_config: dict = deepcopy(AVAILABLE_DEVICES.get(device_name, {}))
 		if config is not None:
@@ -257,7 +258,8 @@ class Controller:
 					if k not in ['created_at', 'updated_at', 'can_generate_license', 'test_info']
 				},
 			}
-			return self.smtx_db.set_test_info_for_reader(reader.get('id'), test_info)
+			success, data = self.smtx_db.set_test_info_for_reader(reader.get('id'), test_info)
+			return success, data if not success else serial_number
 		except Exception as e:
 			msg = f'Erro ao marcar o dispositivo {self.current_device} como testado: {e}'
 			logging.error(msg)
