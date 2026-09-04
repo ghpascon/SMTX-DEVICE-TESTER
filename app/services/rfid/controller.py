@@ -144,9 +144,11 @@ class Controller:
 	def reset_tests(self):
 		self.current_device = None
 		self.tests = {}
+		self.tags.clear()
 		logging.info('Reset tests to default values')
 
 	async def set_test_device(self, device_name: str, config: dict = None):
+		self.reset_tests()
 		if device_name not in AVAILABLE_DEVICES:
 			logging.error(f'Device {device_name} is not available for testing')
 			return False

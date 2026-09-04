@@ -165,6 +165,7 @@
                         const data = result.data || {};
                         this.current_device = data.current_device || null;
                         this.tests = data.tests || {};
+                        this.current_config = data.current_config || null;
                         this.lastUpdated = Date.now();
                     }
                 } catch (err) {
@@ -178,7 +179,14 @@
                 this.reloading = true;
                 try {
                     const endpoint = '{{ url_for("set_test_device", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(this.current_device));
-                    const res = await fetch(endpoint, { method: 'POST' });
+                    // send previous device configuration if available so reload uses same config
+                    const options = { method: 'POST' };
+                    if (this.current_config) {
+                        const form = new FormData();
+                        form.append('device_config', JSON.stringify(this.current_config));
+                        options.body = form;
+                    }
+                    const res = await fetch(endpoint, options);
                     if (res.ok) {
                         // refresh current tests info
                         await this.load();

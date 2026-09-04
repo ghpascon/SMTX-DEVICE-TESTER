@@ -124,6 +124,7 @@ def get_current_tests():
 	return {
 		'current_device': rfid_manager.controller.current_device,
 		'tests': rfid_manager.controller.tests,
+		'current_config': rfid_manager.controller.current_config,
 	}
 
 
