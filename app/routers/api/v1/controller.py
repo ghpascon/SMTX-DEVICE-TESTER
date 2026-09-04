@@ -191,7 +191,12 @@ async def mark_tested(request: Request):
 			content={'message': data},
 		)
 	# PRINT LABEL
-	serial = str(data)
+	serial = rfid_manager.controller.get_current_serial_number()
+	if not serial:
+		return JSONResponse(
+			status_code=400,
+			content={'message': 'No current serial number found'},
+		)
 	success, data = rfid_manager.devices.print(
 		settings.PRINTER_NAME, settings.ZPL.format(serial=serial)
 	)
@@ -201,3 +206,25 @@ async def mark_tested(request: Request):
 			content={'message': f'Falha ao imprimir etiqueta {serial}: {data}'},
 		)
 	return {'message': 'Etiqueta impressa e leitor marcado como testado com sucesso'}
+
+
+@router.post(
+	'/print_label',
+	summary='Print a label for a specific serial number',
+)
+async def print_label():
+	serial = rfid_manager.controller.get_current_serial_number()
+	if not serial:
+		return JSONResponse(
+			status_code=400,
+			content={'message': 'No current serial number found'},
+		)
+	success, data = rfid_manager.devices.print(
+		settings.PRINTER_NAME, settings.ZPL.format(serial=serial)
+	)
+	if not success:
+		return JSONResponse(
+			status_code=500,
+			content={'message': f'Failed to print label {serial}: {data}'},
+		)
+	return {'message': f'Label for serial {serial} printed successfully'}

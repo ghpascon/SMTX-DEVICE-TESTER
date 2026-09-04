@@ -52,6 +52,38 @@
             <span x-text="marking ? 'Processando...' : 'Marcar como testado'"></span>
         </button>
     </div>
+    <!-- Success modal (opened after markTested success) -->
+    <div x-show="showSuccessModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div class="fixed inset-0 bg-black/50" @click="closeSuccessModal()"></div>
+        <div class="relative bg-white rounded-lg shadow-lg max-w-lg w-full p-4 mx-auto">
+            <div class="flex items-start justify-between">
+                <h4 class="text-lg font-semibold">Leitor marcado como testado</h4>
+                <button @click="closeSuccessModal()" class="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div class="mt-3 text-sm text-gray-600" x-text="modalMessage"></div>
+            <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button @click="modalReset()" :disabled="resetting"
+                    class="py-2 px-3 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">Mudar
+                    device</button>
+                <button @click="modalReload()" :disabled="reloading"
+                    class="py-2 px-3 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">Reiniciar
+                    testes</button>
+                <button @click="modalPrint()" :disabled="printing"
+                    class="py-2 px-3 rounded bg-gray-800 text-white hover:bg-gray-900 disabled:opacity-50">
+                    <svg x-show="printing" class="animate-spin inline-block h-4 w-4 mr-2"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    Imprimir etiqueta
+                </button>
+            </div>
+            <div class="mt-3 text-right">
+                <button @click="closeSuccessModal()" class="text-sm text-gray-600 hover:underline">Fechar</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -81,6 +113,48 @@
 
             lastUpdatedText() {
                 return this.lastUpdated ? new Date(this.lastUpdated).toLocaleTimeString() : '';
+            },
+
+            // modal state
+            showSuccessModal: false,
+            modalMessage: '',
+            printing: false,
+
+            closeSuccessModal() {
+                this.showSuccessModal = false;
+            },
+
+            async modalReset() {
+                // Reset and navigate away
+                this.showSuccessModal = false;
+                await this.resetTestsSilent();
+            },
+
+            async modalReload() {
+                // Reload tests for same device
+                this.showSuccessModal = false;
+                await this.reloadDevice();
+            },
+
+            async modalPrint() {
+                // Call print_label endpoint but keep modal open
+                if (this.printing) return;
+                this.printing = true;
+                try {
+                    const res = await fetch('{{ url_for("print_label") }}', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok) {
+                        window.showAlert(data.message || 'Etiqueta impressa', 'success');
+                    } else {
+                        const errMsg = (data && data.message) ? data.message : `Erro ${res.status}: Falha ao imprimir etiqueta`;
+                        window.showAlert(errMsg, 'error');
+                    }
+                } catch (err) {
+                    console.error('Erro ao imprimir etiqueta', err);
+                    window.showAlert('Erro ao imprimir etiqueta', 'error');
+                } finally {
+                    this.printing = false;
+                }
             },
 
             async load() {
@@ -144,7 +218,9 @@
                     const data = await res.json().catch(() => ({}));
                     if (res.ok) {
                         window.showAlert(data.message || 'Leitor marcado como testado', 'success');
-                        await this.resetTestsSilent();
+                        // open modal to ask next action: reset, reload or print again
+                        this.modalMessage = data.message || 'Leitor marcado como testado';
+                        this.showSuccessModal = true;
                     } else {
                         const errMsg = (data && data.message) ? data.message : `Erro ${res.status}: Falha ao marcar como testado`;
                         window.showAlert(errMsg, 'error');

@@ -205,6 +205,14 @@ class Controller:
 				return None
 			return hostname
 
+	def get_current_serial_number(self):
+		if not self.current_device:
+			return None
+		serial_number = self.devices.get_device_info(self.current_device)[0].get('serial_number')
+		if not serial_number or serial_number.lower() == 'unknown':
+			return None
+		return serial_number
+
 	def mark_tested(self, user_info: dict):
 		if not self.current_device:
 			msg = 'Sem dispositivo definido para teste. Não é possível marcar como testado.'
@@ -215,9 +223,7 @@ class Controller:
 			logging.error(msg)
 			return False, msg
 		try:
-			serial_number = self.devices.get_device_info(self.current_device)[0].get(
-				'serial_number'
-			)
+			serial_number = self.get_current_serial_number()
 			if not serial_number or serial_number.lower() == 'unknown':
 				msg = f'Serial number não encontrado para o dispositivo {self.current_device}. Não é possível marcar como testado.'
 				logging.error(msg)
