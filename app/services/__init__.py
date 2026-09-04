@@ -4,4 +4,4 @@ from smartx_rfid.auth import AuthManager
 
 rfid_manager = RfidManager(devices_path=DEVICES_PATH, example_path=f'{EXAMPLE_PATH}/devices')
 
-auth_manager = AuthManager()
+auth_manager = AuthManager(expiration_minutes=120)
