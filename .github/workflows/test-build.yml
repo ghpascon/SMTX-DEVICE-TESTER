@@ -24,6 +24,7 @@ jobs:
       - name: Install Poetry and dependencies
         run: pip install poetry; poetry lock; poetry install
 
+
       - name: Build executable
         run: poetry run python scripts/build_exe.py
 
@@ -157,3 +158,12 @@ jobs:
             git tag "$NEW_TAG"
           fi
           git push origin "$NEW_TAG"
+
+      - name: Delete build artifacts
+        if: always()
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            windows-temp
+            linux-temp
+          failOnError: false
