@@ -28,6 +28,22 @@
           </div>
           <div>
             <div x-show="loadingConfig" class="text-sm text-gray-500 mb-2">Carregando configuração...</div>
+            <div class="mb-2">
+              <template x-if="Object.keys(availableConfigs).length > 1">
+                <div class="mb-2 flex items-center gap-2">
+                  <label class="text-sm text-gray-600">Escolha a configuração:</label>
+                  <select x-model="selectedConfigName" @change="onConfigChanged()" class="border rounded p-1 text-sm">
+                    <template x-for="(cfgName, idx) in Object.keys(availableConfigs)" :key="idx">
+                      <option :value="cfgName" x-text="cfgName"></option>
+                    </template>
+                  </select>
+                </div>
+              </template>
+              <template x-if="Object.keys(availableConfigs).length === 1">
+                <div class="text-sm text-gray-600 mb-2">Config: <span class="font-medium"
+                    x-text="Object.keys(availableConfigs)[0]"></span></div>
+              </template>
+            </div>
             <textarea x-model="configText" class="w-full h-64 p-2 font-mono text-sm border rounded"
               spellcheck="false"></textarea>
             <div class="text-xs text-gray-500 mt-2">Edite a configuração se desejar — será enviada como form ao servidor
@@ -53,6 +69,9 @@
       // Modal / editor state
       showConfigModal: false,
       editingDeviceName: null,
+      // available configs from server: name -> config
+      availableConfigs: {},
+      selectedConfigName: null,
       configText: '',
       loadingConfig: false,
       saving: false,
@@ -94,20 +113,42 @@
           const res = await fetch(endpoint);
           if (res.ok) {
             const data = await res.json();
-            this.configText = JSON.stringify(data || {}, null, 2);
+            // server returns a mapping name -> config (can have multiple)
+            this.availableConfigs = data || {};
+            const keys = Object.keys(this.availableConfigs || {});
+            if (keys.length === 0) {
+              this.selectedConfigName = null;
+              this.configText = '{}';
+            } else {
+              // keep previous selection if still available
+              this.selectedConfigName = this.selectedConfigName && this.availableConfigs[this.selectedConfigName] ? this.selectedConfigName : keys[0];
+              this.configText = JSON.stringify(this.availableConfigs[this.selectedConfigName] || {}, null, 2);
+            }
           } else {
             let data = {};
             try { data = await res.json(); } catch { }
+            this.availableConfigs = {};
+            this.selectedConfigName = null;
             this.configText = '{}';
             window.showAlert(data.message || 'Falha ao carregar configuração', 'error');
           }
         } catch (err) {
           console.error('Erro ao carregar configuração', err);
+          this.availableConfigs = {};
+          this.selectedConfigName = null;
           this.configText = '{}';
           window.showAlert('Erro ao carregar configuração', 'error');
         } finally {
           this.loadingConfig = false;
         }
+      },
+
+      onConfigChanged() {
+        try {
+          if (this.selectedConfigName && this.availableConfigs[this.selectedConfigName]) {
+            this.configText = JSON.stringify(this.availableConfigs[this.selectedConfigName], null, 2);
+          }
+        } catch (e) { }
       },
 
       closeModal() {
@@ -122,7 +163,7 @@
         this.saving = true;
         try {
           // valida JSON antes de enviar
-          const payload = this.configText || '{}';
+          let payload = this.configText || '{}';
           try {
             JSON.parse(payload);
           } catch (e) {
@@ -132,6 +173,10 @@
           }
 
           const fd = new FormData();
+          // send selected config name (if any) and the config body
+          if (this.selectedConfigName) {
+            fd.append('config_name', this.selectedConfigName);
+          }
           fd.append('device_config', payload);
 
           const setUrl = '{{ url_for("set_test_device", device_name="__DEVICENAME__") }}'.replace('__DEVICENAME__', encodeURIComponent(this.editingDeviceName));

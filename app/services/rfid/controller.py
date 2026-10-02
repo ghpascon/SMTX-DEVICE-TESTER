@@ -42,16 +42,15 @@ class Controller:
 	def on_event(self, name: str, event_type: str, event_data):
 		logging.info(f'[ EVENT ] {name} - {event_type}: {event_data}')
 
-		if event_type in self.tests:
-			self.tests[event_type] = True
+		self.mark_test_as_passed(event_type)
 
 		if event_type == 'receive':
 			if event_data.startswith('#POWER'):
 				source = event_data.split(':')[1].strip()
 				if source == 'USB' and 'usb_power_source' in self.tests:
-					self.tests['usb_power_source'] = True
+					self.mark_test_as_passed('usb_power_source')
 				elif source == 'EXT' and 'ext_power_source' in self.tests:
-					self.tests['ext_power_source'] = True
+					self.mark_test_as_passed('ext_power_source')
 
 	# [ Reading Events ]
 	def on_start(self, name: str):
@@ -67,7 +66,7 @@ class Controller:
 		logging.info(f'[ TAG ] {name} - {tag}')
 		if not license_manager.validate_license():
 			return
-		self.tests['tag'] = True
+		self.mark_test_as_passed('tag')
 		self.read_ant_test_event(tag.get('ant', 0))
 
 	def on_existing_tag(self, name: str, tag: dict):
@@ -76,8 +75,7 @@ class Controller:
 
 	def read_ant_test_event(self, ant):
 		field = f'read_ant_{ant}'
-		if field in self.tests:
-			self.tests[field] = True
+		self.mark_test_as_passed(field)
 
 	# [ WRITE LIST ]
 	def create_write_list_prefix(self, epcs: list, prefix: str):
@@ -141,6 +139,11 @@ class Controller:
 		)
 
 	# [ TEST ]
+	def mark_test_as_passed(self, test_name: str):
+		if test_name in self.tests:
+			self.tests[test_name]['state'] = True
+			logging.info(f"Marked test '{test_name}' as passed")
+
 	def reset_tests(self):
 		self.current_device = None
 		self.tests = {}
@@ -173,8 +176,8 @@ class Controller:
 	def validate_tests(self):
 		if not self.current_device:
 			return False
-		for test, passed in self.tests.items():
-			if not passed:
+		for test, test_info in self.tests.items():
+			if not test_info.get('state') and test_info.get('mandatory'):
 				return False
 		return True
 
