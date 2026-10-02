@@ -63,4 +63,23 @@ AVAILABLE_DEVICES = {
 			'FIRMWARE_VERSION': '8.4.1',
 		},
 	},
+	'PORTAL_SLIM': {
+		'tests': {
+			'connection': False,
+			'reading': False,
+			'tag': False,
+			'serial_number': False,
+			'read_ant_1': False,
+			'read_ant_2': False,
+			'ext_power_source': False,
+		},
+		'config': {
+			'READER': 'X714',
+			'BUZZER': True,
+			'SESSION': 0,
+			'START_READING': True,
+			'READ_POWER': 20,
+			'ACTIVE_ANT': [1, 2],
+		},
+	},
 }
